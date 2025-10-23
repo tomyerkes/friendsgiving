@@ -68,7 +68,48 @@
       <div id="legend" class="text-xs text-slate-600">Loading availability…</div>
     </section>
   </div>
+  
+<section class="mt-8">
+  <h2 class="text-lg font-semibold text-slate-800">Current Signups (live)</h2>
+  <div id="legend" class="text-xs text-slate-600">Loading availability…</div>
+  <div id="signupsList" class="mt-3 space-y-2"></div>
+</section>
+  <script>
+  function renderSignups(signups) {
+    const wrap = document.querySelector('#signupsList');
+    wrap.innerHTML = '';
+    if (!signups || !signups.length) {
+      wrap.innerHTML = '<div class="text-sm text-slate-500">No signups yet.</div>';
+      return;
+    }
+    signups.forEach(s => {
+      const dates = (s.dates || []).join(' • ');
+      const picks = s.picks || {};
+      wrap.insertAdjacentHTML('beforeend', `
+        <div class="rounded-xl border p-3 bg-slate-50">
+          <div class="font-medium">${s.name || 'Anonymous'}</div>
+          <div class="text-xs text-slate-600 mt-0.5">${dates || 'No date selected'}</div>
+          <div class="text-sm mt-1">
+            <span class="font-semibold">Main:</span> ${picks.main || '-'} •
+            <span class="font-semibold">Side:</span> ${picks.side || '-'} •
+            <span class="font-semibold">Dessert:</span> ${picks.dessert || '-'} •
+            <span class="font-semibold">Drink:</span> ${picks.drink || '-'}
+          </div>
+        </div>
+      `);
+    });
+  }
 
+  function applyData({ options, counts, signups }) {
+    renderDates(weekendDatesNovDec2025());
+    renderCategory('main', options.Main, counts.Main || {});
+    renderCategory('side', options.Side, counts.Side || {});
+    renderCategory('dessert', options.Dessert, counts.Dessert || {});
+    renderCategory('drink', options.Drink, counts.Drink || {});
+    document.querySelector('#legend').textContent = 'Live availability updates as people sign up.';
+    renderSignups(signups || []);
+  }
+  </script>
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbx4f1bHUV-EUhD32QzDfjfz0se6BQXDzuH5W3ukYa9N9F3ECJYHUBMElwWd6XiPC2Uf/exec"; // <-- replace with your /exec URL
     const el = sel => document.querySelector(sel);
