@@ -29,6 +29,7 @@
 
       <div>
         <h2 class="text-lg font-semibold text-slate-800">Dates you can attend</h2>
+        <p class="text-xs text-slate-500">(Fridays, Saturdays, and Sundays in November & December 2025)</p>
         <div id="dateList" class="mt-2 grid sm:grid-cols-2 gap-2"></div>
       </div>
 
@@ -36,18 +37,22 @@
         <div>
           <h3 class="font-semibold text-slate-800">Main Course</h3>
           <div id="mainList" class="mt-2 space-y-2"></div>
+          <input name="mainOther" id="mainOther" class="hidden mt-2 w-full rounded-xl border px-3 py-2" placeholder="Other (please specify)" />
         </div>
         <div>
           <h3 class="font-semibold text-slate-800">Side Dish</h3>
           <div id="sideList" class="mt-2 space-y-2"></div>
+          <input name="sideOther" id="sideOther" class="hidden mt-2 w-full rounded-xl border px-3 py-2" placeholder="Other (please specify)" />
         </div>
         <div>
           <h3 class="font-semibold text-slate-800">Dessert</h3>
           <div id="dessertList" class="mt-2 space-y-2"></div>
+          <input name="dessertOther" id="dessertOther" class="hidden mt-2 w-full rounded-xl border px-3 py-2" placeholder="Other (please specify)" />
         </div>
         <div>
           <h3 class="font-semibold text-slate-800">Drinks</h3>
           <div id="drinkList" class="mt-2 space-y-2"></div>
+          <input name="drinkOther" id="drinkOther" class="hidden mt-2 w-full rounded-xl border px-3 py-2" placeholder="Other (please specify)" />
         </div>
       </div>
 
@@ -62,25 +67,50 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzDL-oOZVuZ_n64pT4kcTGsZDz1RVpAlfMRgBG8CEnws3dsDM9WMLk7T69Rq7RO_zXT/exec"; // e.g., https://script.google.com/macros/s/…/exec
-
+    const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE"; // your Apps Script /exec URL
     const el = sel => document.querySelector(sel);
 
+    // ------- Dates (Weekends Nov & Dec 2025) -------
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const DOW_ABBR = ["Sun.","Mon.","Tue.","Wed.","Thu.","Fri.","Sat."];
+
+    function ordinal(n){
+      const s=["th","st","nd","rd"], v=n%100; return n + (s[(v-20)%10] || s[v] || s[0]);
+    }
+
+    function weekendDatesNovDec2025(){
+      const dates=[];
+      [10,11].forEach(m=>{ // 10=Nov, 11=Dec
+        const lastDay = new Date(2025, m+1, 0).getDate();
+        for(let d=1; d<=lastDay; d++){
+          const dt = new Date(2025, m, d);
+          const wd = dt.getDay(); // 0=Sun ... 6=Sat
+          if (wd===5 || wd===6 || wd===0){ // Fri/Sat/Sun
+            const label = `${MONTH_NAMES[m]} ${ordinal(d)} 2025 - ${DOW_ABRR_SAFE ? DOW_ABRR_SAFE[wd] : DOW_ABBR[wd]}`;
+            const value = dt.toISOString().split('T')[0]; // YYYY-MM-DD
+            dates.push({label,value});
+          }
+        }
+      });
+      return dates;
+    }
+
+    // ------- Backend -------
     async function loadConfig() {
       const res = await fetch(`${API_URL}?action=config`);
       if (!res.ok) throw new Error('Failed to load config');
       return res.json();
     }
 
-    function renderDates(dates) {
+    // ------- Rendering -------
+    function renderDates(dateObjs) {
       const wrap = el('#dateList');
       wrap.innerHTML = '';
-      dates.forEach((d, idx) => {
-        const id = `date_${idx}`;
+      dateObjs.forEach(({label,value}) => {
         wrap.insertAdjacentHTML('beforeend', `
           <label class="flex items-center gap-2 rounded-xl border p-2">
-            <input type="checkbox" name="dates" value="${d}" class="h-4 w-4" />
-            <span>${d}</span>
+            <input type="checkbox" name="dates" value="${value}" class="h-4 w-4" />
+            <span>${label}</span>
           </label>
         `);
       });
@@ -92,7 +122,6 @@
       items.forEach(({ item, max }, idx) => {
         const taken = counts[item] || 0;
         const full = taken >= max;
-        const id = `${catId}_${idx}`;
         wrap.insertAdjacentHTML('beforeend', `
           <label class="flex items-start gap-2 rounded-xl border p-2 ${full ? 'opacity-50' : ''}">
             <input type="radio" name="${catId}" value="${item}" ${full ? 'disabled' : ''} class="mt-1" />
@@ -103,10 +132,30 @@
           </label>
         `);
       });
+      // Add "Other" option + show the input when selected
+      wrap.insertAdjacentHTML('beforeend', `
+        <label class="flex items-start gap-2 rounded-xl border p-2">
+          <input type="radio" name="${catId}" value="Other" class="mt-1" />
+          <div>
+            <div class="font-medium">Other</div>
+            <div class="text-xs text-slate-500">Type your own below</div>
+          </div>
+        </label>
+      `);
+      wrap.addEventListener('change', (e) => {
+        const otherInput = el(`#${catId}Other`);
+        if (e.target.name === catId && e.target.value === 'Other') {
+          otherInput.classList.remove('hidden');
+        } else if (e.target.name === catId) {
+          otherInput.classList.add('hidden');
+          otherInput.value = '';
+        }
+      });
     }
 
-    function applyData({ dates, options, counts }) {
-      renderDates(dates);
+    function applyData({ options, counts }) {
+      // Use our computed weekend dates instead of backend dates
+      renderDates(weekendDatesNovDec2025());
       renderCategory('main', options.Main, counts.Main || {});
       renderCategory('side', options.Side, counts.Side || {});
       renderCategory('dessert', options.Dessert, counts.Dessert || {});
@@ -114,13 +163,13 @@
       el('#legend').textContent = 'Live availability updates as people sign up.';
     }
 
-    function showNotice(msg, type = 'warn') {
-      const n = el('#notice');
+    function showNotice(msg){
+      const n=el('#notice');
       n.classList.remove('hidden');
-      n.textContent = msg;
+      n.textContent=msg;
     }
 
-    async function init() {
+    async function init(){
       try {
         const data = await loadConfig();
         applyData(data);
@@ -129,6 +178,7 @@
       }
     }
 
+    // ------- Submit -------
     el('#fgForm').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const form = ev.currentTarget;
@@ -136,10 +186,10 @@
       const email = form.email.value.trim();
       const dates = [...document.querySelectorAll('input[name="dates"]:checked')].map(i => i.value);
       const picks = {
-        main: form.main?.value || '',
-        side: form.side?.value || '',
-        dessert: form.dessert?.value || '',
-        drink: form.drink?.value || ''
+        main: form.main?.value === 'Other' ? form.mainOther.value : form.main?.value || '',
+        side: form.side?.value === 'Other' ? form.sideOther.value : form.side?.value || '',
+        dessert: form.dessert?.value === 'Other' ? form.dessertOther.value : form.dessert?.value || '',
+        drink: form.drink?.value === 'Other' ? form.drinkOther.value : form.drink?.value || ''
       };
       if (!name || !email) return showNotice('Please enter your name and email.');
 
@@ -151,8 +201,7 @@
         });
         const data = await res.json();
         if (data.status !== 'ok') throw new Error(data.message || 'Error');
-        showNotice('Thanks! Your response has been recorded. You can close this page.', 'ok');
-        // Reload availability to reflect the new counts
+        showNotice('Thanks! Your response has been recorded.');
         const cfg = await loadConfig();
         applyData(cfg);
         form.reset();
@@ -165,3 +214,4 @@
   </script>
 </body>
 </html>
+
