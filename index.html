@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mandi's Friendsgiving Planner</title>
+  <title>Friendsgiving Planner</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Silence favicon 404s -->
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <meta name="color-scheme" content="light only">
 </head>
 <body class="bg-orange-50 min-h-screen">
   <div class="max-w-3xl mx-auto p-6">
     <header class="mb-6 text-center">
-      <h1 class="text-3xl font-extrabold text-orange-800">🍂 Mandi's Friendsgiving Planner 🍂</h1>
+      <h1 class="text-3xl font-extrabold text-orange-800">🍂 Friendsgiving Planner</h1>
       <p class="text-sm text-orange-900/80 mt-1">Pick the dates that work for you and claim what you’ll bring.</p>
     </header>
 
@@ -67,7 +70,7 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbx2woN80RuZVnf_8UQmuh46FT_QS_aCDQs8y1c_hZUdMEzFcSjGr1LmvC8XNQ35N6jo/exec"; // your Apps Script /exec URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbx2woN80RuZVnf_8UQmuh46FT_QS_aCDQs8y1c_hZUdMEzFcSjGr1LmvC8XNQ35N6jo/exec"; // <-- replace with your /exec URL
     const el = sel => document.querySelector(sel);
 
     // ------- Dates (Weekends Nov & Dec 2025) -------
@@ -75,7 +78,8 @@
     const DOW_ABBR = ["Sun.","Mon.","Tue.","Wed.","Thu.","Fri.","Sat."];
 
     function ordinal(n){
-      const s=["th","st","nd","rd"], v=n%100; return n + (s[(v-20)%10] || s[v] || s[0]);
+      const s=["th","st","nd","rd"], v=n%100;
+      return n + (s[(v-20)%10] || s[v] || s[0]);
     }
 
     function weekendDatesNovDec2025(){
@@ -86,7 +90,7 @@
           const dt = new Date(2025, m, d);
           const wd = dt.getDay(); // 0=Sun ... 6=Sat
           if (wd===5 || wd===6 || wd===0){ // Fri/Sat/Sun
-            const label = `${MONTH_NAMES[m]} ${ordinal(d)} 2025 - ${DOW_ABRR_SAFE ? DOW_ABRR_SAFE[wd] : DOW_ABBR[wd]}`;
+            const label = `${MONTH_NAMES[m]} ${ordinal(d)} 2025 - ${DOW_ABBR[wd]}`;
             const value = dt.toISOString().split('T')[0]; // YYYY-MM-DD
             dates.push({label,value});
           }
@@ -97,8 +101,12 @@
 
     // ------- Backend -------
     async function loadConfig() {
-      const res = await fetch(`${API_URL}?action=config`);
-      if (!res.ok) throw new Error('Failed to load config');
+      const url = `${API_URL}?action=config`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`HTTP ${res.status} – ${txt.slice(0,200)}`);
+      }
       return res.json();
     }
 
@@ -119,7 +127,7 @@
     function renderCategory(catId, items, counts) {
       const wrap = el(`#${catId}List`);
       wrap.innerHTML = '';
-      items.forEach(({ item, max }, idx) => {
+      items.forEach(({ item, max }) => {
         const taken = counts[item] || 0;
         const full = taken >= max;
         wrap.insertAdjacentHTML('beforeend', `
@@ -154,7 +162,6 @@
     }
 
     function applyData({ options, counts }) {
-      // Use our computed weekend dates instead of backend dates
       renderDates(weekendDatesNovDec2025());
       renderCategory('main', options.Main, counts.Main || {});
       renderCategory('side', options.Side, counts.Side || {});
@@ -175,6 +182,7 @@
         applyData(data);
       } catch (err) {
         showNotice('Could not load availability. Try refreshing.');
+        console.error('CONFIG/RENDER ERROR', err);
       }
     }
 
@@ -196,7 +204,7 @@
       try {
         const res = await fetch(API_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
+          headers: { 'Content-Type': 'text/plain' },  // avoids CORS preflight on Apps Script
           body: JSON.stringify({ name, email, dates, picks })
         });
         const data = await res.json();
@@ -207,6 +215,7 @@
         form.reset();
       } catch (err) {
         showNotice('Submission failed. Please try again.');
+        console.error('SUBMIT ERROR', err);
       }
     });
 
@@ -214,4 +223,3 @@
   </script>
 </body>
 </html>
-
