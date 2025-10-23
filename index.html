@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Friendsgiving Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-orange-50 min-h-screen">
+  <div class="max-w-3xl mx-auto p-6">
+    <header class="mb-6 text-center">
+      <h1 class="text-3xl font-extrabold text-orange-800">🍂 Friendsgiving Planner</h1>
+      <p class="text-sm text-orange-900/80 mt-1">Pick the dates that work for you and claim what you’ll bring.</p>
+    </header>
+
+    <div id="notice" class="hidden mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-900 text-sm"></div>
+
+    <form id="fgForm" class="space-y-6 bg-white p-5 rounded-2xl shadow">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Your Name</span>
+          <input required name="name" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Jane Doe" />
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Email</span>
+          <input required type="email" name="email" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="jane@example.com" />
+        </label>
+      </div>
+
+      <div>
+        <h2 class="text-lg font-semibold text-slate-800">Dates you can attend</h2>
+        <div id="dateList" class="mt-2 grid sm:grid-cols-2 gap-2"></div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-semibold text-slate-800">Main Course</h3>
+          <div id="mainList" class="mt-2 space-y-2"></div>
+        </div>
+        <div>
+          <h3 class="font-semibold text-slate-800">Side Dish</h3>
+          <div id="sideList" class="mt-2 space-y-2"></div>
+        </div>
+        <div>
+          <h3 class="font-semibold text-slate-800">Dessert</h3>
+          <div id="dessertList" class="mt-2 space-y-2"></div>
+        </div>
+        <div>
+          <h3 class="font-semibold text-slate-800">Drinks</h3>
+          <div id="drinkList" class="mt-2 space-y-2"></div>
+        </div>
+      </div>
+
+      <button class="w-full rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3">Submit</button>
+      <p class="text-xs text-center text-slate-500">You’ll see items disabled once they’re claimed up to their limit.</p>
+    </form>
+
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold text-slate-800">Current Signups (live)</h2>
+      <div id="legend" class="text-xs text-slate-600">Loading availability…</div>
+    </section>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbzDL-oOZVuZ_n64pT4kcTGsZDz1RVpAlfMRgBG8CEnws3dsDM9WMLk7T69Rq7RO_zXT/exec"; // e.g., https://script.google.com/macros/s/…/exec
+
+    const el = sel => document.querySelector(sel);
+
+    async function loadConfig() {
+      const res = await fetch(`${API_URL}?action=config`);
+      if (!res.ok) throw new Error('Failed to load config');
+      return res.json();
+    }
+
+    function renderDates(dates) {
+      const wrap = el('#dateList');
+      wrap.innerHTML = '';
+      dates.forEach((d, idx) => {
+        const id = `date_${idx}`;
+        wrap.insertAdjacentHTML('beforeend', `
+          <label class="flex items-center gap-2 rounded-xl border p-2">
+            <input type="checkbox" name="dates" value="${d}" class="h-4 w-4" />
+            <span>${d}</span>
+          </label>
+        `);
+      });
+    }
+
+    function renderCategory(catId, items, counts) {
+      const wrap = el(`#${catId}List`);
+      wrap.innerHTML = '';
+      items.forEach(({ item, max }, idx) => {
+        const taken = counts[item] || 0;
+        const full = taken >= max;
+        const id = `${catId}_${idx}`;
+        wrap.insertAdjacentHTML('beforeend', `
+          <label class="flex items-start gap-2 rounded-xl border p-2 ${full ? 'opacity-50' : ''}">
+            <input type="radio" name="${catId}" value="${item}" ${full ? 'disabled' : ''} class="mt-1" />
+            <div>
+              <div class="font-medium">${item}</div>
+              <div class="text-xs text-slate-500">${taken}/${max} claimed</div>
+            </div>
+          </label>
+        `);
+      });
+    }
+
+    function applyData({ dates, options, counts }) {
+      renderDates(dates);
+      renderCategory('main', options.Main, counts.Main || {});
+      renderCategory('side', options.Side, counts.Side || {});
+      renderCategory('dessert', options.Dessert, counts.Dessert || {});
+      renderCategory('drink', options.Drink, counts.Drink || {});
+      el('#legend').textContent = 'Live availability updates as people sign up.';
+    }
+
+    function showNotice(msg, type = 'warn') {
+      const n = el('#notice');
+      n.classList.remove('hidden');
+      n.textContent = msg;
+    }
+
+    async function init() {
+      try {
+        const data = await loadConfig();
+        applyData(data);
+      } catch (err) {
+        showNotice('Could not load availability. Try refreshing.');
+      }
+    }
+
+    el('#fgForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const form = ev.currentTarget;
+      const name = form.name.value.trim();
+      const email = form.email.value.trim();
+      const dates = [...document.querySelectorAll('input[name="dates"]:checked')].map(i => i.value);
+      const picks = {
+        main: form.main?.value || '',
+        side: form.side?.value || '',
+        dessert: form.dessert?.value || '',
+        drink: form.drink?.value || ''
+      };
+      if (!name || !email) return showNotice('Please enter your name and email.');
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ name, email, dates, picks })
+        });
+        const data = await res.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'Error');
+        showNotice('Thanks! Your response has been recorded. You can close this page.', 'ok');
+        // Reload availability to reflect the new counts
+        const cfg = await loadConfig();
+        applyData(cfg);
+        form.reset();
+      } catch (err) {
+        showNotice('Submission failed. Please try again.');
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
